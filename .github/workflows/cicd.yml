@@ -1,22 +1,31 @@
 name: Release
 
-env:
-  GODOT_VERSION: 4.4.1
-
 on:
-  push:
-    tags:
-      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g. v1.0.0)"
+        required: true
+        default: "v1.0.0"
+
+permissions:
+  contents: write
+
+env:
+  GODOT_VERSION: "4.7.1"
 
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
+
     steps:
+      # Checkout repository
       - name: Checkout
         uses: actions/checkout@v4
         with:
           lfs: true
 
+      # Build Godot game
       - name: Build game
         id: build
         uses: firebelley/godot-export@v5.2.1
@@ -27,34 +36,37 @@ jobs:
           use_preset_export_path: true
           archive_output: true
 
+      # Show exported files
       - name: Show build directory
-        run: ls -R "${{ steps.build.outputs.build_directory }}"
+        run: |
+          echo "Build directory:"
+          ls -R "./src/build"
 
+      # Show generated archives
       - name: Show archive directory
-        run: ls -R "${{ steps.build.outputs.archive_directory }}"
+        run: |
+          echo "Archive directory:"
+          ls -R "${{ steps.build.outputs.archive_directory }}"
 
+      # Download Butler
+      - name: Make get_butler.sh executable
+        run: chmod +x ./get_butler.sh
+
+      # Deploy Web build to itch.io
+      - name: Deploy to itch.io
+        run: |
+          ./get_butler.sh
+
+          BUTLER_API_KEY=${{ secrets.BUTLER_API_KEY }} ./butler --verbose push \
+            "./src/build/web_release" \
+            "${{ vars.ITCHIO_USERNAME }}/${{ vars.ITCHIO_GAME }}:web"
+
+      # Create GitHub Release
       - name: Create GitHub release
         uses: ncipollo/release-action@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           generateReleaseNotes: true
-          tag: ${{ github.ref_name }}
+          tag: ${{ github.event.inputs.version }}
           artifacts: ${{ steps.build.outputs.archive_directory }}/**/*.zip
           allowUpdates: true
-  
-      - name: Make get_butler.sh executable
-        run: chmod +x ./get_butler.sh  
-
-      - name: Deploy to itch.io
-        run: |
-          ./get_butler.sh
-          BUTLER_API_KEY=${{ secrets.BUTLER_API_KEY }} ./butler --verbose push \
-            "${{ steps.build.outputs.build_directory }}/web_release" \
-            "${{ vars.ITCHIO_USERNAME }}/${{ vars.ITCHIO_GAME }}:web"
-
-      - name: Send Discord notification
-        env:
-          DISCORD_WEBHOOK: ${{ secrets.DISCORD_RELEASE_WEBHOOK }}
-        uses: Ilshidur/action-discord@master
-        with:
-          args: '${{ vars.GAME_NAME }} ${{ github.ref_name }} released: https://${{ vars.ITCHIO_USERNAME }}.itch.io/${{ vars.ITCHIO_GAME }} Password: 100devs'
