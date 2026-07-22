@@ -66,7 +66,7 @@ jobs:
           ./get_butler.sh
 
           BUTLER_API_KEY=${{ secrets.BUTLER_API_KEY }} ./butler --verbose push \
-            "${{ steps.build.outputs.build_directory }}/web_release" \
+            "${{ steps.build.outputs.build_directory }}/Web" \
             "${{ vars.ITCHIO_USERNAME }}/${{ vars.ITCHIO_GAME }}:web"
 
       # Create GitHub Release
