@@ -8,6 +8,12 @@ on:
         required: true
         default: "v1.0.0"
 
+      deploy_to_itchio:
+        description: "Deploy Web build to itch.io"
+        required: true
+        type: boolean
+        default: false
+
 permissions:
   contents: write
 
@@ -40,7 +46,7 @@ jobs:
       - name: Show build directory
         run: |
           echo "Build directory:"
-          ls -R "./src/build"
+          ls -R "${{ steps.build.outputs.build_directory }}"
 
       # Show generated archives
       - name: Show archive directory
@@ -50,15 +56,17 @@ jobs:
 
       # Download Butler
       - name: Make get_butler.sh executable
+        if: ${{ inputs.deploy_to_itchio }}
         run: chmod +x ./get_butler.sh
 
       # Deploy Web build to itch.io
       - name: Deploy to itch.io
+        if: ${{ inputs.deploy_to_itchio }}
         run: |
           ./get_butler.sh
 
           BUTLER_API_KEY=${{ secrets.BUTLER_API_KEY }} ./butler --verbose push \
-            "./src/build/web_release" \
+            "${{ steps.build.outputs.build_directory }}/web_release" \
             "${{ vars.ITCHIO_USERNAME }}/${{ vars.ITCHIO_GAME }}:web"
 
       # Create GitHub Release
@@ -68,5 +76,5 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           generateReleaseNotes: true
           tag: ${{ github.event.inputs.version }}
-          artifacts: ${{ steps.build.outputs.archive_directory }}/**/*.zip
+          artifacts: "${{ steps.build.outputs.archive_directory }}/**/*.zip"
           allowUpdates: true
